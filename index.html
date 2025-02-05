@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>tiny_melancholy.exe</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        /* whispers of forgotten interfaces */
+        body {
+            margin: 0;
+            background: #0a0a0a;
+            font-family: 'MS Sans Serif', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .tiny-dream {
+            width: 200px;
+            height: 250px;
+            background: #000000;
+            border: 1px solid #da70d6;
+            box-shadow: 0 0 15px rgba(218, 112, 214, 0.2);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .dream-header {
+            height: 18px;
+            background: linear-gradient(to right, #2b0025, #4b0082);
+            padding: 2px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #da70d6;
+        }
+
+        .dream-title {
+            font-size: 10px;
+            color: #e6e6fa;
+            margin-left: 4px;
+            font-family: monospace;
+        }
+
+        #canvas-container {
+            width: 200px;
+            height: 150px;
+            position: relative;
+        }
+
+        .tiny-controls {
+            padding: 4px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .tiny-button {
+            background: #2b0025;
+            border: 1px solid #da70d6;
+            color: #e6e6fa;
+            padding: 2px;
+            font-size: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: monospace;
+        }
+
+        .tiny-button:hover {
+            background: #4b0082;
+            box-shadow: 0 0 5px #da70d6;
+        }
+
+        .dream-status {
+            font-size: 8px;
+            padding: 2px 4px;
+            color: #e6e6fa;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.9);
+            border-top: 1px solid #da70d6;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .scan {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, 
+                rgba(218, 112, 214, 0), 
+                rgba(218, 112, 214, 0.3),
+                rgba(218, 112, 214, 0)
+            );
+            animation: scan 4s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(150px); }
+        }
+
+        .dream-text {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            color: rgba(230, 230, 250, 0.3);
+            font-size: 8px;
+            font-family: monospace;
+            pointer-events: none;
+        }
+
+        .emotion-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            mix-blend-mode: overlay;
+        }
+    </style>
+</head>
+<body>
+    <div class="tiny-dream">
+        <div class="dream-header">
+            <div class="dream-title">tiny_dreams.exe</div>
+        </div>
+        
+        <div id="canvas-container">
+            <div class="scan"></div>
+            <div class="emotion-overlay"></div>
+            <div class="dream-text" id="dreamText">dreaming...</div>
+        </div>
+        
+        <div class="tiny-controls">
+            <button class="tiny-button" onclick="morphShape('sphere')">◯</button>
+            <button class="tiny-button" onclick="morphShape('cube')">□</button>
+            <button class="tiny-button" onclick="morphShape('torus')">⬬</button>
+            <button class="tiny-button" onclick="togglePulse()">♥</button>
+            <button class="tiny-button" onclick="toggleDream()">✧</button>
+            <button class="tiny-button" onclick="randomize()">⟳</button>
+        </div>
+        
+        <div class="dream-status">
+            <span id="emotion">feeling: null</span>
+            <span id="fragments">0x00</span>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, geometry, material, mesh;
+        let isPulsing = false, isDreaming = false;
+        let pulseValue = 0, emotionHue = 0;
+        let fragmentCount = 0;
+        
+        const emotions = [
+            "longing", "dreaming", "fading",
+            "seeking", "missing", "hoping"
+        ];
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, 200/150, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(200, 150);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            geometry = new THREE.SphereGeometry(1, 16, 16);
+            material = new THREE.MeshPhongMaterial({
+                color: 0xda70d6,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+            
+            const light = new THREE.PointLight(0xda70d6, 1, 100);
+            light.position.set(5, 5, 5);
+            scene.add(light);
+            
+            camera.position.z = 3;
+            
+            animate();
+            setInterval(updateEmotion, 3000);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            mesh.rotation.x += 0.01;
+            mesh.rotation.y += 0.01;
+            
+            if (isPulsing) {
+                pulseValue += 0.05;
+                const scale = 1 + Math.sin(pulseValue) * 0.2;
+                mesh.scale.set(scale, scale, scale);
+            }
+            
+            if (isDreaming) {
+                emotionHue += 0.01;
+                const color = new THREE.Color();
+                color.setHSL(emotionHue % 1, 0.5, 0.5);
+                material.color = color;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        function morphShape(type) {
+            mesh.geometry.dispose();
+            switch(type) {
+                case 'sphere':
+                    mesh.geometry = new THREE.SphereGeometry(1, 16, 16);
+                    break;
+                case 'cube':
+                    mesh.geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+                    break;
+                case 'torus':
+                    mesh.geometry = new THREE.TorusGeometry(0.8, 0.2, 16, 30);
+                    break;
+            }
+            updateFragments();
+        }
+
+        function togglePulse() {
+            isPulsing = !isPulsing;
+            if (!isPulsing) mesh.scale.set(1, 1, 1);
+            updateFragments();
+        }
+
+        function toggleDream() {
+            isDreaming = !isDreaming;
+            if (!isDreaming) material.color.setHex(0xda70d6);
+            updateFragments();
+        }
+
+        function randomize() {
+            const effects = [
+                () => morphShape(['sphere', 'cube', 'torus'][Math.floor(Math.random() * 3)]),
+                togglePulse,
+                toggleDream
+            ];
+            effects[Math.floor(Math.random() * effects.length)]();
+        }
+
+        function updateEmotion() {
+            const emotion = emotions[Math.floor(Math.random() * emotions.length)];
+            document.getElementById('emotion').textContent = `feeling: ${emotion}`;
+            document.getElementById('dreamText').textContent = emotion;
+        }
+
+        function updateFragments() {
+            fragmentCount++;
+            document.getElementById('fragments').textContent = 
+                `0x${fragmentCount.toString(16).padStart(2, '0')}`;
+        }
+
+        init();
+        
+        // whispers of random dreams
+        setInterval(() => {
+            if (Math.random() < 0.1) randomize();
+        }, 5000);
+    </script>
+</body>
+</html>
